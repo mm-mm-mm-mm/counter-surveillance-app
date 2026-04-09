@@ -22,7 +22,7 @@ TARGET_FPS = 15
 ANPR_CONFIDENCE_THRESHOLD = 0.85
 
 # Number of frames a track must be absent before declared departed
-TRACK_GRACE_FRAMES = 10
+TRACK_GRACE_FRAMES = 30
 
 # Frames at the start of video within which a vehicle is considered stationary
 STATIONARY_START_FRAMES = 30

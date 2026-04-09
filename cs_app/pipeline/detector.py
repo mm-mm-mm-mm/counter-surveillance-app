@@ -62,6 +62,12 @@ class VehicleDetector:
 
         return detections
 
+    def reset_tracker(self):
+        """Clear ByteTrack state. Call at the start of each new session."""
+        if hasattr(self.model, "predictor") and self.model.predictor is not None:
+            self.model.predictor = None
+        logger.debug("Tracker state reset.")
+
     def get_make_model(self, class_name: str) -> tuple[str, str]:
         """
         V1: returns coarse class name as make, model unknown.

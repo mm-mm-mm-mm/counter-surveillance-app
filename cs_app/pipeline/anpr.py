@@ -21,31 +21,19 @@ class ANPRResult:
 
 
 # Regex patterns for common European plate formats → country code
-# Checked in order; first match wins
 _NATIONALITY_RULES: list[tuple[re.Pattern, str]] = [
-    # UK: AB12 CDE or AB12CDE
     (re.compile(r"^[A-Z]{2}\d{2}[A-Z]{3}$"), "GB"),
-    # Sweden: ABC 123 or ABC123
     (re.compile(r"^[A-Z]{3}\d{3}$"), "SE"),
-    # Norway: AB 12345
     (re.compile(r"^[A-Z]{2}\d{5}$"), "NO"),
-    # Denmark: AB 12 345
     (re.compile(r"^[A-Z]{2}\d{2}\d{3}$"), "DK"),
-    # Germany: ABC DE 1234 (variable length)
     (re.compile(r"^[A-Z]{1,3}[A-Z]{1,2}\d{1,4}[HE]?$"), "DE"),
-    # France: AB-123-CD
     (re.compile(r"^[A-Z]{2}\d{3}[A-Z]{2}$"), "FR"),
-    # Netherlands: AB-123-C or similar
     (re.compile(r"^[A-Z]{2}\d{3}[A-Z]$"), "NL"),
-    # Poland: AB 12345 or AB1 C234
     (re.compile(r"^[A-Z]{2,3}\d{4,5}$"), "PL"),
-    # Finland: ABC-123
     (re.compile(r"^[A-Z]{2,3}\d{3}$"), "FI"),
-    # Generic 2-letter + digits fallback
     (re.compile(r"^[A-Z]{1,3}\d{3,4}[A-Z]{0,3}$"), "Unknown"),
 ]
 
-# Remove spaces, hyphens, dots for matching
 _CLEAN_RE = re.compile(r"[\s\-\.]")
 
 
@@ -59,33 +47,39 @@ class ANPRProcessor:
         self, frame_bgr: np.ndarray, bbox_xyxy: list[float]
     ) -> ANPRResult:
         """
-        Attempt to read the licence plate from a vehicle bounding box.
-        Returns an ANPRResult; text may be empty if nothing detected.
+        Read the licence plate from a vehicle bounding box.
+
+        Plate background color is classified from the tight region around the
+        OCR-detected text — not from the vehicle body — so car color cannot
+        influence taxi/diplomatic categorisation.
         """
         plate_crop = extract_plate_region(frame_bgr, bbox_xyxy)
 
-        plate_color, category = classify_plate_color(plate_crop)
-
         if plate_crop.size == 0:
-            return ANPRResult("", 0.0, plate_color, category, "Unknown")
+            return ANPRResult("", 0.0, "white", "normal", "Unknown")
 
         try:
             ocr_results = self.reader.readtext(plate_crop, detail=1)
         except Exception as e:
             logger.warning("EasyOCR failed: %s", e)
-            return ANPRResult("", 0.0, plate_color, category, "Unknown")
+            return ANPRResult("", 0.0, "white", "normal", "Unknown")
 
         best_text = ""
         best_conf = 0.0
+        best_ocr_bbox = None  # tight bbox around the best OCR result (in plate_crop coords)
 
-        for (_bbox, text, conf) in ocr_results:
+        for (ocr_bbox, text, conf) in ocr_results:
             clean = _CLEAN_RE.sub("", text.upper())
-            # Filter: must be alphanumeric, 4–10 chars
             if not re.match(r"^[A-Z0-9]{4,10}$", clean):
                 continue
             if conf > best_conf:
                 best_conf = conf
                 best_text = clean
+                best_ocr_bbox = ocr_bbox  # list of 4 [x,y] corner points
+
+        # Classify plate background color from the tight OCR bbox, not the whole
+        # bottom-strip crop. This ensures car body colour cannot affect the result.
+        plate_color, category = _classify_from_ocr_bbox(plate_crop, best_ocr_bbox)
 
         nationality = infer_nationality(best_text) if best_text else "Unknown"
 
@@ -98,8 +92,37 @@ class ANPRProcessor:
         )
 
     def should_retry(self, result: ANPRResult) -> bool:
-        """True if the plate was not confidently read and should be retried."""
+        """True if plate confidence is below the lock threshold."""
         return not result.text or result.confidence < ANPR_CONFIDENCE_THRESHOLD
+
+
+def _classify_from_ocr_bbox(
+    plate_crop: np.ndarray,
+    ocr_bbox,
+) -> tuple[str, str]:
+    """
+    If an OCR bbox is available, crop tightly around the detected text and
+    classify the plate background from that region.
+    Falls back to the full plate_crop if no OCR bbox is available.
+    """
+    if ocr_bbox is not None:
+        try:
+            xs = [pt[0] for pt in ocr_bbox]
+            ys = [pt[1] for pt in ocr_bbox]
+            h, w = plate_crop.shape[:2]
+            # Add a small margin around the text to include the plate background
+            margin = max(4, int((max(ys) - min(ys)) * 0.4))
+            x1 = max(0, int(min(xs)) - margin)
+            y1 = max(0, int(min(ys)) - margin)
+            x2 = min(w, int(max(xs)) + margin)
+            y2 = min(h, int(max(ys)) + margin)
+            tight_crop = plate_crop[y1:y2, x1:x2]
+            if tight_crop.size > 0:
+                return classify_plate_color(tight_crop)
+        except Exception:
+            pass
+
+    return classify_plate_color(plate_crop)
 
 
 def infer_nationality(plate_text: str) -> str:

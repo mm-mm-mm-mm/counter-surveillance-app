@@ -1,7 +1,7 @@
 import logging
 from dataclasses import dataclass, field
 
-from cs_app.config import TRACK_GRACE_FRAMES, STATIONARY_START_FRAMES
+from cs_app.config import TRACK_GRACE_FRAMES, STATIONARY_START_FRAMES, ANPR_CONFIDENCE_THRESHOLD
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +16,9 @@ class TrackState:
     observation_id: str
     first_seen_frame: int
     last_seen_frame: int
-    plate_confirmed: bool = False
+    plate_confirmed: bool = False      # True once confidence >= ANPR_CONFIDENCE_THRESHOLD
+    plate_locked: bool = False         # True once plate is permanently locked (no more updates)
+    best_plate_confidence: float = 0.0 # Highest confidence seen so far for this vehicle
     is_stationary_at_start: bool = False
     bbox_last: list[float] = field(default_factory=list)
 
@@ -27,6 +29,8 @@ class _DepartedEntry:
     bbox: list[float]
     departed_frame: int
     plate_confirmed: bool
+    plate_locked: bool
+    best_plate_confidence: float
 
 
 class TrackStateManager:
@@ -85,6 +89,8 @@ class TrackStateManager:
                 bbox=state.bbox_last,
                 departed_frame=current_frame_idx,
                 plate_confirmed=state.plate_confirmed,
+                plate_locked=state.plate_locked,
+                best_plate_confidence=state.best_plate_confidence,
             ))
             logger.debug("Track %d departed (obs=%s)", tid, state.observation_id)
 
@@ -110,6 +116,8 @@ class TrackStateManager:
                     first_seen_frame=current_frame_idx,
                     last_seen_frame=current_frame_idx,
                     plate_confirmed=match.plate_confirmed,
+                    plate_locked=match.plate_locked,
+                    best_plate_confidence=match.best_plate_confidence,
                     bbox_last=det.bbox_xyxy,
                 )
                 logger.debug(
@@ -136,6 +144,20 @@ class TrackStateManager:
 
     def all_active_track_ids(self) -> list[int]:
         return list(self._states.keys())
+
+    def update_plate_confidence(self, track_id: int, confidence: float):
+        """Record a new plate confidence reading. Locks permanently at threshold."""
+        state = self._states.get(track_id)
+        if state and not state.plate_locked:
+            if confidence > state.best_plate_confidence:
+                state.best_plate_confidence = confidence
+            state.plate_confirmed = True
+            if confidence >= ANPR_CONFIDENCE_THRESHOLD:
+                state.plate_locked = True
+
+    def is_plate_locked(self, track_id: int) -> bool:
+        state = self._states.get(track_id)
+        return state.plate_locked if state else False
 
     def mark_plate_confirmed(self, track_id: int):
         if track_id in self._states:

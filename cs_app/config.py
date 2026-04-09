@@ -19,7 +19,7 @@ FRAME_SKIP = 2
 TARGET_FPS = 15
 
 # Minimum ANPR confidence to mark plate as confirmed
-ANPR_CONFIDENCE_THRESHOLD = 0.6
+ANPR_CONFIDENCE_THRESHOLD = 0.85
 
 # Number of frames a track must be absent before declared departed
 TRACK_GRACE_FRAMES = 10

@@ -74,8 +74,7 @@ function _drawBox(obs) {
   const w  = (vx2 - vx1) * scale;
   const h  = (vy2 - vy1) * scale;
 
-  const colors = { normal: "#00c896", taxi: "#f5c800", diplomatic: "#6699ff" };
-  const color  = colors[obs.category] || "#00c896";
+  const color = "#00c896";
 
   ctx.strokeStyle = color;
   ctx.lineWidth   = 2;

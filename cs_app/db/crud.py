@@ -31,7 +31,6 @@ async def update_observation_plate(
     observation_id: str,
     plate_text: str,
     plate_color: str,
-    category: str,
     nationality: str,
 ) -> None:
     result = await db.execute(
@@ -41,7 +40,6 @@ async def update_observation_plate(
     if obs:
         obs.vehicle_licence_plate = plate_text
         obs.vehicle_licence_plate_color = plate_color
-        obs.category = category
         obs.vehicle_licence_plate_nationality = nationality
         await db.commit()
 

@@ -109,7 +109,6 @@ class ProcessingSession:
                             db, obs_id,
                             anpr_result.text,
                             anpr_result.plate_color,
-                            anpr_result.category,
                             anpr_result.nationality,
                         )
                         tracker.update_plate_confidence(tid, anpr_result.confidence)
@@ -127,12 +126,10 @@ class ProcessingSession:
 
                     anpr_result = anpr.read_plate(frame_bgr, det.bbox_xyxy)
                     if anpr_result.text and anpr_result.confidence > state.best_plate_confidence:
-                        # Only update DB when we have a better reading than before
                         await update_observation_plate(
                             db, state.observation_id,
                             anpr_result.text,
                             anpr_result.plate_color,
-                            anpr_result.category,
                             anpr_result.nationality,
                         )
                         tracker.update_plate_confidence(tid, anpr_result.confidence)
@@ -216,7 +213,6 @@ async def _build_active_obs(db, tracker, det_by_id, t0, elapsed_now):
                 "bbox": [int(v) for v in det.bbox_xyxy],
                 "plate_text": obs.vehicle_licence_plate or "",
                 "plate_color": obs.vehicle_licence_plate_color or "white",
-                "category": obs.category or "normal",
                 "make": obs.vehicle_make or "",
                 "model": obs.vehicle_model or "",
                 "color": obs.vehicle_color or "",
@@ -232,7 +228,6 @@ def _obs_to_dict(obs) -> dict:
         "observation_id": obs.observation_id,
         "plate_text": obs.vehicle_licence_plate or "",
         "plate_color": obs.vehicle_licence_plate_color or "white",
-        "category": obs.category or "normal",
         "make": obs.vehicle_make or "",
         "model": obs.vehicle_model or "",
         "color": obs.vehicle_color or "",

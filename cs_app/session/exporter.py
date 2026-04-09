@@ -17,7 +17,6 @@ _EXPORT_FIELDS = [
     "vehicle_licence_plate",
     "vehicle_licence_plate_color",
     "vehicle_licence_plate_nationality",
-    "category",
 ]
 
 
@@ -39,7 +38,6 @@ async def export_csv(observations: list[Observation], video_filename: str) -> Pa
                 "vehicle_licence_plate": obs.vehicle_licence_plate or "",
                 "vehicle_licence_plate_color": obs.vehicle_licence_plate_color or "",
                 "vehicle_licence_plate_nationality": obs.vehicle_licence_plate_nationality or "",
-                "category": obs.category or "",
             })
 
     logger.info("CSV exported to %s", out_path)

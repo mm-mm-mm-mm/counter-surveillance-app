@@ -58,12 +58,6 @@ export function updateCard(obs) {
     renderPlate(plateEl, obs.plate_text, obs.plate_color, obs.nationality);
   }
 
-  // Update category tag
-  const tagEl = li.querySelector(".card-tag");
-  if (tagEl && obs.category) {
-    tagEl.className = `card-tag tag-${obs.category}`;
-    tagEl.textContent = obs.category;
-  }
 }
 
 export function clearAll() {
@@ -74,8 +68,6 @@ export function clearAll() {
 
 function _buildCardHTML(obs) {
   const elapsed = _formatElapsed(obs.elapsed_since_first);
-  const catClass = `tag-${obs.category || "normal"}`;
-  const catText  = obs.category || "normal";
 
   return `
     <div class="plate-container"></div>
@@ -88,7 +80,6 @@ function _buildCardHTML(obs) {
     <div class="card-row">
       <span class="label">Color:</span>
       <span class="val">${obs.color || "—"}</span>
-      <span class="card-tag ${catClass}">${catText}</span>
     </div>
     <div class="card-row">
       <span class="label">First seen:</span>

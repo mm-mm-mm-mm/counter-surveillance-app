@@ -18,7 +18,6 @@ class Observation(Base):
     vehicle_licence_plate = Column(String, nullable=True)
     vehicle_licence_plate_color = Column(String, nullable=True)
     vehicle_licence_plate_nationality = Column(String, nullable=True)
-    category = Column(String, nullable=True)
 
     # Internal field — not exported to CSV
     internal_track_id = Column(Integer, nullable=True, index=True)

@@ -235,18 +235,6 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 .card-row .label { color: var(--text-dim); }
 .card-row .val   { color: var(--text); font-weight: 500; }
 
-.card-tag {
-  display: inline-block;
-  padding: 1px 5px;
-  border-radius: 3px;
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-.tag-normal     { background: #1e3a2a; color: #5dd496; border: 1px solid #2a5a3a; }
-.tag-taxi       { background: #3a2e00; color: #f5c800; border: 1px solid #5a4800; }
-.tag-diplomatic { background: #001a4d; color: #6699ff; border: 1px solid #003399; }
 
 .elapsed-time {
   font-family: monospace;

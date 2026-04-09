@@ -16,7 +16,6 @@ class ANPRResult:
     text: str
     confidence: float
     plate_color: str
-    category: str
     nationality: str
 
 
@@ -83,17 +82,12 @@ class ANPRProcessor:
                 best_conf = conf
                 best_text = clean
 
-        # Category classification from plate background colour is disabled —
-        # all vehicles default to "normal".
-        plate_color, category = "white", "normal"
-
         nationality = infer_nationality(best_text) if best_text else "Unknown"
 
         return ANPRResult(
             text=best_text,
             confidence=best_conf,
-            plate_color=plate_color,
-            category=category,
+            plate_color="white",
             nationality=nationality,
         )
 

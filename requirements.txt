@@ -1,0 +1,13 @@
+fastapi>=0.111
+uvicorn[standard]>=0.29
+websockets>=12
+sqlalchemy[asyncio]>=2.0
+aiosqlite>=0.19
+ultralytics>=8.2
+easyocr>=1.7
+opencv-python-headless>=4.9
+av>=12
+numpy>=1.26
+pillow>=10
+torch>=2.3
+torchvision>=0.18

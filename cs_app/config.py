@@ -27,6 +27,15 @@ TRACK_GRACE_FRAMES = 30
 # Frames at the start of video within which a vehicle is considered stationary
 STATIONARY_START_FRAMES = 30
 
+# Minimum frames between ANPR retries for an unconfirmed plate (after the initial read)
+ANPR_RETRY_INTERVAL = 10
+
+# Re-identification: how long (frames) a departed track stays available for re-matching
+REID_WINDOW_FRAMES = 150
+
+# Re-identification: minimum IoU to consider a new track the same vehicle
+REID_IOU_THRESHOLD = 0.15
+
 # JPEG encode quality for frame streaming (0-100)
 FRAME_JPEG_QUALITY = 75
 

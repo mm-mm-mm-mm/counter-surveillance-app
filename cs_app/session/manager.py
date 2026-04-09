@@ -9,7 +9,7 @@ from pathlib import Path
 
 import cv2
 
-from cs_app.config import FRAME_SKIP, TARGET_FPS
+from cs_app.config import FRAME_SKIP, TARGET_FPS, ANPR_RETRY_INTERVAL
 from cs_app.db.crud import (
     create_observation,
     update_observation_plate,
@@ -103,6 +103,7 @@ class ProcessingSession:
                     save_snapshot(frame_bgr, det.bbox_xyxy, obs_id)
 
                     # Initial ANPR attempt
+                    tracker.record_anpr_attempt(tid, frame_idx)
                     anpr_result = anpr.read_plate(frame_bgr, det.bbox_xyxy)
                     if anpr_result.text:
                         await update_observation_plate(
@@ -113,17 +114,20 @@ class ProcessingSession:
                         )
                         tracker.update_plate_confidence(tid, anpr_result.confidence)
 
-                # --- Retry ANPR for plates not yet locked ---
+                # --- Retry ANPR: throttled, only when enough frames have passed ---
                 for tid in tracker.all_active_track_ids():
                     if tid in new_ids:
                         continue
                     if tracker.is_plate_locked(tid):
+                        continue
+                    if not tracker.anpr_due(tid, frame_idx, ANPR_RETRY_INTERVAL):
                         continue
                     state = tracker.get_state(tid)
                     det = det_by_id.get(tid)
                     if not state or not det:
                         continue
 
+                    tracker.record_anpr_attempt(tid, frame_idx)
                     anpr_result = anpr.read_plate(frame_bgr, det.bbox_xyxy)
                     if anpr_result.text and anpr_result.confidence > state.best_plate_confidence:
                         await update_observation_plate(

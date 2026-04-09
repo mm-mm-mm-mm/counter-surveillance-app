@@ -1,14 +1,13 @@
 import logging
 from dataclasses import dataclass, field
 
-from cs_app.config import TRACK_GRACE_FRAMES, STATIONARY_START_FRAMES, ANPR_CONFIDENCE_THRESHOLD
+from cs_app.config import (
+    TRACK_GRACE_FRAMES, STATIONARY_START_FRAMES, ANPR_CONFIDENCE_THRESHOLD,
+    REID_WINDOW_FRAMES, REID_IOU_THRESHOLD,
+)
 
 logger = logging.getLogger(__name__)
 
-# Frames to keep a departed track in the re-ID pool
-_REID_WINDOW_FRAMES = 90
-# Minimum IoU to consider a new track the same vehicle as a departed one
-_REID_IOU_THRESHOLD = 0.25
 
 
 @dataclass
@@ -16,9 +15,10 @@ class TrackState:
     observation_id: str
     first_seen_frame: int
     last_seen_frame: int
-    plate_confirmed: bool = False      # True once confidence >= ANPR_CONFIDENCE_THRESHOLD
-    plate_locked: bool = False         # True once plate is permanently locked (no more updates)
-    best_plate_confidence: float = 0.0 # Highest confidence seen so far for this vehicle
+    plate_confirmed: bool = False       # True once any plate text has been read
+    plate_locked: bool = False          # True once confidence >= ANPR_CONFIDENCE_THRESHOLD
+    best_plate_confidence: float = 0.0  # Highest OCR confidence seen so far
+    last_anpr_frame: int = -1           # Frame index of the most recent ANPR attempt
     is_stationary_at_start: bool = False
     bbox_last: list[float] = field(default_factory=list)
 
@@ -31,6 +31,7 @@ class _DepartedEntry:
     plate_confirmed: bool
     plate_locked: bool
     best_plate_confidence: float
+    last_anpr_frame: int
 
 
 class TrackStateManager:
@@ -91,13 +92,14 @@ class TrackStateManager:
                 plate_confirmed=state.plate_confirmed,
                 plate_locked=state.plate_locked,
                 best_plate_confidence=state.best_plate_confidence,
+                last_anpr_frame=state.last_anpr_frame,
             ))
             logger.debug("Track %d departed (obs=%s)", tid, state.observation_id)
 
         # Expire old re-ID pool entries
         self._departed_pool = [
             e for e in self._departed_pool
-            if current_frame_idx - e.departed_frame <= _REID_WINDOW_FRAMES
+            if current_frame_idx - e.departed_frame <= REID_WINDOW_FRAMES
         ]
 
         # Classify new track IDs: genuine new vehicle or re-identified?
@@ -118,6 +120,7 @@ class TrackStateManager:
                     plate_confirmed=match.plate_confirmed,
                     plate_locked=match.plate_locked,
                     best_plate_confidence=match.best_plate_confidence,
+                    last_anpr_frame=match.last_anpr_frame,
                     bbox_last=det.bbox_xyxy,
                 )
                 logger.debug(
@@ -144,6 +147,20 @@ class TrackStateManager:
 
     def all_active_track_ids(self) -> list[int]:
         return list(self._states.keys())
+
+    def record_anpr_attempt(self, track_id: int, frame_idx: int):
+        """Record that ANPR was run on this track at frame_idx."""
+        if track_id in self._states:
+            self._states[track_id].last_anpr_frame = frame_idx
+
+    def anpr_due(self, track_id: int, current_frame: int, retry_interval: int) -> bool:
+        """True if enough frames have passed since the last ANPR attempt."""
+        state = self._states.get(track_id)
+        if not state:
+            return False
+        if state.last_anpr_frame < 0:
+            return True  # never attempted
+        return (current_frame - state.last_anpr_frame) >= retry_interval
 
     def update_plate_confidence(self, track_id: int, confidence: float):
         """Record a new plate confidence reading. Locks permanently at threshold."""
@@ -183,7 +200,7 @@ def _find_reid_match(
     pool: list[_DepartedEntry],
 ) -> _DepartedEntry | None:
     """Return the best IoU match from the departed pool, or None."""
-    best, best_iou = None, _REID_IOU_THRESHOLD
+    best, best_iou = None, REID_IOU_THRESHOLD
     for entry in pool:
         iou = _iou(bbox, entry.bbox)
         if iou > best_iou:

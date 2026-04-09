@@ -6,7 +6,7 @@ import numpy as np
 import easyocr
 
 from cs_app.config import ANPR_CONFIDENCE_THRESHOLD
-from cs_app.pipeline.plate_color import classify_plate_color, extract_plate_region
+from cs_app.pipeline.plate_color import extract_plate_region
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +35,14 @@ _NATIONALITY_RULES: list[tuple[re.Pattern, str]] = [
 ]
 
 _CLEAN_RE = re.compile(r"[\s\-\.]")
+
+# Accepted plate formats (L = letter, N = number):
+#   LLL NNN  →  3 letters + 3 digits      (e.g. ABC123)
+#   LLL NN L →  3 letters + 2 digits + 1 letter  (e.g. ABC12D)
+#   LL NNN L →  2 letters + 3 digits + 1 letter  (e.g. AB123C)
+_VALID_PLATE_RE = re.compile(
+    r"^(?:[A-Z]{3}\d{3}|[A-Z]{3}\d{2}[A-Z]|[A-Z]{2}\d{3}[A-Z])$"
+)
 
 
 class ANPRProcessor:
@@ -66,20 +74,18 @@ class ANPRProcessor:
 
         best_text = ""
         best_conf = 0.0
-        best_ocr_bbox = None  # tight bbox around the best OCR result (in plate_crop coords)
 
         for (ocr_bbox, text, conf) in ocr_results:
             clean = _CLEAN_RE.sub("", text.upper())
-            if not re.match(r"^[A-Z0-9]{4,10}$", clean):
+            if not _is_valid_plate(clean):
                 continue
             if conf > best_conf:
                 best_conf = conf
                 best_text = clean
-                best_ocr_bbox = ocr_bbox  # list of 4 [x,y] corner points
 
-        # Classify plate background color from the tight OCR bbox, not the whole
-        # bottom-strip crop. This ensures car body colour cannot affect the result.
-        plate_color, category = _classify_from_ocr_bbox(plate_crop, best_ocr_bbox)
+        # Category classification from plate background colour is disabled —
+        # all vehicles default to "normal".
+        plate_color, category = "white", "normal"
 
         nationality = infer_nationality(best_text) if best_text else "Unknown"
 
@@ -96,33 +102,8 @@ class ANPRProcessor:
         return not result.text or result.confidence < ANPR_CONFIDENCE_THRESHOLD
 
 
-def _classify_from_ocr_bbox(
-    plate_crop: np.ndarray,
-    ocr_bbox,
-) -> tuple[str, str]:
-    """
-    If an OCR bbox is available, crop tightly around the detected text and
-    classify the plate background from that region.
-    Falls back to the full plate_crop if no OCR bbox is available.
-    """
-    if ocr_bbox is not None:
-        try:
-            xs = [pt[0] for pt in ocr_bbox]
-            ys = [pt[1] for pt in ocr_bbox]
-            h, w = plate_crop.shape[:2]
-            # Add a small margin around the text to include the plate background
-            margin = max(4, int((max(ys) - min(ys)) * 0.4))
-            x1 = max(0, int(min(xs)) - margin)
-            y1 = max(0, int(min(ys)) - margin)
-            x2 = min(w, int(max(xs)) + margin)
-            y2 = min(h, int(max(ys)) + margin)
-            tight_crop = plate_crop[y1:y2, x1:x2]
-            if tight_crop.size > 0:
-                return classify_plate_color(tight_crop)
-        except Exception:
-            pass
-
-    return classify_plate_color(plate_crop)
+def _is_valid_plate(text: str) -> bool:
+    return bool(_VALID_PLATE_RE.match(text))
 
 
 def infer_nationality(plate_text: str) -> str:

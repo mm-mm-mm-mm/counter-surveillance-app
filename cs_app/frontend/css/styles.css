@@ -112,12 +112,21 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
   flex-direction: column;
   background: #000;
   overflow: hidden;
+  min-width: 0;
+}
+
+.canvas-wrapper {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
 }
 
 #video-canvas {
-  flex: 1;
+  position: absolute;
+  top: 0; left: 0;
   width: 100%;
-  object-fit: contain;
+  height: 100%;
   display: block;
 }
 

@@ -1,0 +1,7 @@
+.DS_Store
+video_input/*
+!video_input/.gitkeep
+observation_images/*
+!observation_images/.gitkeep
+session_data/*
+!session_data/.gitkeep
